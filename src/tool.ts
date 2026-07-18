@@ -41,6 +41,11 @@ const ensureToken = async (username: string): Promise<string | null> => {
     return token;
 };
 
+const isTradingEnabled = (): boolean => {
+    const value = process.env.IOL_ENABLE_TRADING;
+    return value === "true" || value === "1";
+};
+
 const registerTools = (server: McpServer) => {
 
     // ─── Autenticación ────────────────────────────────────────────────────────
@@ -173,6 +178,7 @@ const registerTools = (server: McpServer) => {
             }
         },
         async ({ username, operation_number }) => {
+            if (!isTradingEnabled()) return { content: [{ type: "text", text: "Trading not enabled. Set IOL_ENABLE_TRADING=true to enable." }] };
             const accessToken = await ensureToken(username);
             if (!accessToken) return { content: [{ type: "text", text: `No valid token for ${username}. Please login first.` }] };
             const data = await makeIOLDeleteRequest<any>(`${IOL_API_BASE}/api/v2/operaciones/${operation_number}`, accessToken);
@@ -236,6 +242,7 @@ const registerTools = (server: McpServer) => {
             }
         },
         async ({ username, market, symbol, quantity, price, term, expiry }) => {
+            if (!isTradingEnabled()) return { content: [{ type: "text", text: "Trading not enabled. Set IOL_ENABLE_TRADING=true to enable." }] };
             const accessToken = await ensureToken(username);
             if (!accessToken) return { content: [{ type: "text", text: `No valid token for ${username}. Please login first.` }] };
             const order = { mercado: market, simbolo: symbol, cantidad: quantity, precio: price, plazo: term, validez: expiry };
@@ -260,6 +267,7 @@ const registerTools = (server: McpServer) => {
             }
         },
         async ({ username, market, symbol, quantity, price, term, expiry }) => {
+            if (!isTradingEnabled()) return { content: [{ type: "text", text: "Trading not enabled. Set IOL_ENABLE_TRADING=true to enable." }] };
             const accessToken = await ensureToken(username);
             if (!accessToken) return { content: [{ type: "text", text: `No valid token for ${username}. Please login first.` }] };
             const order = { mercado: market, simbolo: symbol, cantidad: quantity, precio: price, plazo: term, validez: expiry };
@@ -284,6 +292,7 @@ const registerTools = (server: McpServer) => {
             }
         },
         async ({ username, market, symbol, quantity, price, term, expiry }) => {
+            if (!isTradingEnabled()) return { content: [{ type: "text", text: "Trading not enabled. Set IOL_ENABLE_TRADING=true to enable." }] };
             const accessToken = await ensureToken(username);
             if (!accessToken) return { content: [{ type: "text", text: `No valid token for ${username}. Please login first.` }] };
             const order = { mercado: market, simbolo: symbol, cantidad: quantity, precio: price, plazo: term, validez: expiry };
@@ -308,6 +317,7 @@ const registerTools = (server: McpServer) => {
             }
         },
         async ({ username, market, symbol, quantity, price, term, expiry }) => {
+            if (!isTradingEnabled()) return { content: [{ type: "text", text: "Trading not enabled. Set IOL_ENABLE_TRADING=true to enable." }] };
             const accessToken = await ensureToken(username);
             if (!accessToken) return { content: [{ type: "text", text: `No valid token for ${username}. Please login first.` }] };
             const order = { mercado: market, simbolo: symbol, cantidad: quantity, precio: price, plazo: term, validez: expiry };
@@ -328,6 +338,7 @@ const registerTools = (server: McpServer) => {
             }
         },
         async ({ username, symbol, amount }) => {
+            if (!isTradingEnabled()) return { content: [{ type: "text", text: "Trading not enabled. Set IOL_ENABLE_TRADING=true to enable." }] };
             const accessToken = await ensureToken(username);
             if (!accessToken) return { content: [{ type: "text", text: `No valid token for ${username}. Please login first.` }] };
             const data = await makeIOLPostRequest<any>(`${IOL_API_BASE}/api/v2/operar/suscripcion/fci`, accessToken, { simbolo: symbol, monto: amount });
@@ -347,6 +358,7 @@ const registerTools = (server: McpServer) => {
             }
         },
         async ({ username, symbol, quantity }) => {
+            if (!isTradingEnabled()) return { content: [{ type: "text", text: "Trading not enabled. Set IOL_ENABLE_TRADING=true to enable." }] };
             const accessToken = await ensureToken(username);
             if (!accessToken) return { content: [{ type: "text", text: `No valid token for ${username}. Please login first.` }] };
             const data = await makeIOLPostRequest<any>(`${IOL_API_BASE}/api/v2/operar/rescate/fci`, accessToken, { simbolo: symbol, cantidad: quantity });
@@ -421,6 +433,7 @@ const registerTools = (server: McpServer) => {
             }
         },
         async ({ username, body }) => {
+            if (!isTradingEnabled()) return { content: [{ type: "text", text: "Trading not enabled. Set IOL_ENABLE_TRADING=true to enable." }] };
             const accessToken = await ensureToken(username);
             if (!accessToken) return { content: [{ type: "text", text: `No valid token for ${username}. Please login first.` }] };
             const data = await makeIOLPostRequest<any>(`${IOL_API_BASE}/api/v2/operar/CPD`, accessToken, body);
@@ -531,6 +544,7 @@ const registerTools = (server: McpServer) => {
             }
         },
         async ({ username, body }) => {
+            if (!isTradingEnabled()) return { content: [{ type: "text", text: "Trading not enabled. Set IOL_ENABLE_TRADING=true to enable." }] };
             const accessToken = await ensureToken(username);
             if (!accessToken) return { content: [{ type: "text", text: `No valid token for ${username}. Please login first.` }] };
             const data = await makeIOLPostRequest<any>(`${IOL_API_BASE}/api/v2/OperatoriaSimplificada/Comprar`, accessToken, body);
@@ -984,6 +998,7 @@ const registerTools = (server: McpServer) => {
             }
         },
         async ({ username, body }) => {
+            if (!isTradingEnabled()) return { content: [{ type: "text", text: "Trading not enabled. Set IOL_ENABLE_TRADING=true to enable." }] };
             const accessToken = await ensureToken(username);
             if (!accessToken) return { content: [{ type: "text", text: `No valid token for ${username}. Please login first.` }] };
             const data = await makeIOLPostRequest<any>(`${IOL_API_BASE}/api/v2/asesores/test-inversor`, accessToken, body);
@@ -1003,6 +1018,7 @@ const registerTools = (server: McpServer) => {
             }
         },
         async ({ username, client_id, body }) => {
+            if (!isTradingEnabled()) return { content: [{ type: "text", text: "Trading not enabled. Set IOL_ENABLE_TRADING=true to enable." }] };
             const accessToken = await ensureToken(username);
             if (!accessToken) return { content: [{ type: "text", text: `No valid token for ${username}. Please login first.` }] };
             const data = await makeIOLPostRequest<any>(`${IOL_API_BASE}/api/v2/asesores/test-inversor/${client_id}`, accessToken, body);
@@ -1039,6 +1055,7 @@ const registerTools = (server: McpServer) => {
             }
         },
         async ({ username, body }) => {
+            if (!isTradingEnabled()) return { content: [{ type: "text", text: "Trading not enabled. Set IOL_ENABLE_TRADING=true to enable." }] };
             const accessToken = await ensureToken(username);
             if (!accessToken) return { content: [{ type: "text", text: `No valid token for ${username}. Please login first.` }] };
             const data = await makeIOLPostRequest<any>(`${IOL_API_BASE}/api/v2/asesores/operar/VenderEspecieD`, accessToken, body);

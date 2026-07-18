@@ -86,8 +86,11 @@ MCP server for IOL (InvertirOnline) API - provides tools for authentication, por
 |----------|-------------|
 | `IOL_USERNAME` | IOL account username/email |
 | `IOL_PASSWORD` | IOL account password |
+| `IOL_ENABLE_TRADING` | Set to `true` or `1` to enable trading operations |
 
 If set, auto-login when a tool requires it (lazy). If not set, call `get_token` manually.
+
+Trading tools are disabled by default. Set `IOL_ENABLE_TRADING=true` to enable buy/sell/cancel operations.
 
 ## Notes
 
