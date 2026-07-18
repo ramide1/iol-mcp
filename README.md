@@ -22,7 +22,7 @@ bun run start
 | `IOL_PASSWORD` | IOL account password |
 | `IOL_ENABLE_TRADING` | Set to `true` or `1` to enable buy/sell/cancel operations |
 
-If `IOL_USERNAME` and `IOL_PASSWORD` are set, the server will automatically authenticate when a tool requires it (lazy login). If not set, call `get_token` manually.
+If `IOL_USERNAME` and `IOL_PASSWORD` are set, the server will automatically authenticate when a tool requires it (lazy login). Access tokens auto-refresh using the refresh token when expired. The `username` parameter becomes optional in all tools (except `get_token`). If not set, call `get_token` manually.
 
 Trading tools (`buy`, `sell`, `buy_d`, `sell_d`, `cancel_operation`, `subscribe_fci`, `rescue_fci`, `place_cpd`, `buy_simplified`) are disabled by default. Set `IOL_ENABLE_TRADING=true` to enable them.
 
@@ -32,7 +32,6 @@ Trading tools (`buy`, `sell`, `buy_d`, `sell_d`, `cancel_operation`, `subscribe_
 | Tool | Description |
 |------|-------------|
 | `get_token` | Login and get access/refresh tokens |
-| `refresh_token` | Refresh expired token |
 
 ### MiCuenta
 | Tool | Description |

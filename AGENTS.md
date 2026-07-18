@@ -28,7 +28,6 @@ MCP server for IOL (InvertirOnline) API - provides tools for authentication, por
 | Tool | Description |
 |------|-------------|
 | `get_token` | Login and get access/refresh tokens |
-| `refresh_token` | Refresh expired token |
 | `get_account_status` | Get account info |
 | `get_portfolio` | Get portfolio by country |
 | `get_operations` | List operations with filters |
@@ -88,7 +87,7 @@ MCP server for IOL (InvertirOnline) API - provides tools for authentication, por
 | `IOL_PASSWORD` | IOL account password |
 | `IOL_ENABLE_TRADING` | Set to `true` or `1` to enable trading operations |
 
-If set, auto-login when a tool requires it (lazy). If not set, call `get_token` manually.
+If set, auto-login when a tool requires it (lazy). Access tokens auto-refresh using the refresh token when expired. The `username` parameter becomes optional in all tools (except `get_token`). If not set, call `get_token` manually.
 
 Trading tools are disabled by default. Set `IOL_ENABLE_TRADING=true` to enable buy/sell/cancel operations.
 
