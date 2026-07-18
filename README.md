@@ -28,6 +28,12 @@ Trading tools (`buy`, `sell`, `buy_d`, `sell_d`, `cancel_operation`, `subscribe_
 
 ## Available Tools
 
+### Configuración
+| Tool | Description |
+|------|-------------|
+| `get_config_status` | Check which IOL environment variables are configured |
+| `set_active_user` | Set active user (defaults to `IOL_USERNAME` env) |
+
 ### Autenticación
 | Tool | Description |
 |------|-------------|

@@ -60,13 +60,13 @@ const isTradingEnabled = (): boolean => {
 
 const formatError = (error: unknown): string => {
     if (error instanceof IOLMaintenanceError) {
-        const retry = error.retryAfter ? ` Reintentar en ${error.retryAfter} segundos.` : "";
-        return `API en mantenimiento.${retry}`;
+        const retry = error.retryAfter ? ` Retry in ${error.retryAfter} seconds.` : "";
+        return `API is under maintenance.${retry}`;
     }
     if (error instanceof Error) {
         return `Error: ${error.message}`;
     }
-    return "Error desconocido";
+    return "Unknown error";
 };
 
 const registerTools = (server: McpServer) => {
@@ -80,6 +80,7 @@ const registerTools = (server: McpServer) => {
             const username = process.env.IOL_USERNAME ? "configured" : "not set";
             const password = process.env.IOL_PASSWORD ? "configured" : "not set";
             const trading = process.env.IOL_ENABLE_TRADING || "not set";
+            const tradingEnabled = isTradingEnabled();
             return {
                 content: [{
                     type: "text",
@@ -90,7 +91,7 @@ const registerTools = (server: McpServer) => {
                         `Active user: ${activeUsername || "(none)"}`,
                         "",
                         `Auto-login: ${username === "configured" && password === "configured" ? "enabled" : "disabled"}`,
-                        `Trading: ${trading === "true" || trading === "1" ? "enabled" : "disabled"}`
+                        `Trading: ${tradingEnabled ? "enabled" : "disabled"}`
                     ].join("\n")
                 }]
             };
