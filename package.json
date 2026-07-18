@@ -1,16 +1,14 @@
 {
   "name": "iol-mcp",
-  "module": "./src/index.ts",
-  "type": "module",
-  "bin": {
-    "iol": "./build/index.js"
-  },
+  "version": "1.0.0",
+  "description": "IOL MCP server",
   "scripts": {
-    "build": "tsc && chmod 755 build/index.js"
+    "start": "bun src/main.ts"
   },
-  "files": [
-    "build"
-  ],
+  "author": "ramide1",
+  "license": "MIT",
+  "module": "src/main.ts",
+  "type": "module",
   "private": true,
   "devDependencies": {
     "@types/bun": "latest"

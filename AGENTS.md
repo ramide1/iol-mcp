@@ -2,53 +2,38 @@
 
 MCP server for IOL (InvertirOnline) API - provides tools for authentication, portfolio, operations, and quotes via stdio transport.
 
-## Installation
+## Commands
 
-```bash
-bun install
-```
+- **Install**: `bun install`
+- **Run**: `bun run start` (runs `bun src/main.ts`)
 
-## Usage
+## Architecture
 
-```bash
-bun run start
-```
+- **Runtime**: Bun (not Node.js)
+- **Transport**: stdio (not HTTP)
+- **SDK**: `@modelcontextprotocol/sdk` v1.29+
+- **Entry**: `src/main.ts` → creates McpServer, registers tools, connects to stdio
+- **API Base**: `https://api.invertironline.com`
+- **Validation**: Zod schemas for tool inputs
 
-### Environment Variables (Optional)
+## Files
 
-| Variable | Description |
-|----------|-------------|
-| `IOL_USERNAME` | IOL account username/email |
-| `IOL_PASSWORD` | IOL account password |
+- `src/tool.ts` → All MCP tool definitions (48 tools)
+- `src/tokenManager.ts` → Token storage and lifecycle (in-memory)
+- `src/request.ts` → HTTP request helpers with Bearer auth
+- `src/interface.ts` → TypeScript interfaces for IOL API responses
 
-If set, the server will automatically authenticate when a tool requires it (lazy login). If not set, call `get_token` manually.
+## Tools Available
 
-## Available Tools
-
-### Autenticación
 | Tool | Description |
 |------|-------------|
 | `get_token` | Login and get access/refresh tokens |
 | `refresh_token` | Refresh expired token |
-
-### MiCuenta
-| Tool | Description |
-|------|-------------|
 | `get_account_status` | Get account info |
 | `get_portfolio` | Get portfolio by country |
 | `get_operations` | List operations with filters |
 | `get_operation` | Get single operation by number |
 | `cancel_operation` | Cancel a pending operation |
-
-### Notificaciones y Perfil
-| Tool | Description |
-|------|-------------|
-| `get_notifications` | Get notifications |
-| `get_profile` | Get profile data |
-
-### Operar
-| Tool | Description |
-|------|-------------|
 | `buy` | Place a buy order |
 | `sell` | Place a sell order |
 | `buy_d` | Place a buy order for D specie (MEP) |
@@ -60,19 +45,11 @@ If set, the server will automatically authenticate when a tool requires it (lazy
 | `get_cpd_commissions` | Get CPD commissions |
 | `place_cpd` | Place CPD order |
 | `get_operate_token` | Get operate token |
-
-### Operatoria Simplificada
-| Tool | Description |
-|------|-------------|
 | `get_simplified_amounts` | Get simplified operation amounts |
 | `get_simplified_parameters` | Get simplified operation parameters |
 | `validate_simplified_operation` | Validate simplified operation |
 | `get_simplified_mep_amounts` | Get simplified MEP sale amounts |
 | `buy_simplified` | Place simplified buy order |
-
-### Títulos
-| Tool | Description |
-|------|-------------|
 | `get_fci_list` | List all mutual funds |
 | `get_fci` | Get specific FCI |
 | `get_fci_types` | Get FCI fund types |
@@ -81,10 +58,6 @@ If set, the server will automatically authenticate when a tool requires it (lazy
 | `get_fci_by_administrator_and_type` | Get FCI by admin and type |
 | `get_security` | Get security info |
 | `get_options` | Get options for security |
-
-### Cotizaciones
-| Tool | Description |
-|------|-------------|
 | `get_quote_instruments` | Get available quote instruments |
 | `get_quote_panels` | Get available quote panels |
 | `get_quotes_by_instrument_panel_country` | Get quotes by instrument/panel/country |
@@ -99,34 +72,24 @@ If set, the server will automatically authenticate when a tool requires it (lazy
 | `get_orleans_operable_quotes` | Get Orleans operable quotes |
 | `get_orleans_panel_quotes` | Get Orleans panel quotes |
 | `get_orleans_panel_operable_quotes` | Get Orleans panel operable quotes |
-
-### Asesores
-| Tool | Description |
-|------|-------------|
 | `get_advisor_test_inversor` | Get advisor investor test |
 | `submit_advisor_test` | Submit advisor investor test |
 | `submit_advisor_test_for_client` | Submit test for client |
 | `get_advisor_movements` | Get advisor movements |
 | `sell_d_advisor` | Advisor sell D specie |
+| `get_notifications` | Get notifications |
+| `get_profile` | Get profile data |
 
-## Architecture
+## Environment Variables (Optional)
 
-- **Runtime**: Bun
-- **Transport**: stdio
-- **SDK**: `@modelcontextprotocol/sdk` v1.29+
-- **API Base**: `https://api.invertironline.com`
+| Variable | Description |
+|----------|-------------|
+| `IOL_USERNAME` | IOL account username/email |
+| `IOL_PASSWORD` | IOL account password |
 
-## Project Structure
+If set, auto-login when a tool requires it (lazy). If not set, call `get_token` manually.
 
-```
-src/
-├── main.ts           # Entry point
-├── tool.ts           # MCP tool definitions
-├── tokenManager.ts   # Token storage and lifecycle
-├── request.ts        # HTTP request helpers
-└── interface.ts      # TypeScript interfaces
-```
+## Notes
 
-## License
-
-MIT
+- No test infrastructure exists
+- MCP builder skill in `.agents/skills/mcp-builder/` for reference

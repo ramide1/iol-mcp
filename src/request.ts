@@ -1,23 +1,5 @@
 // Helper function for making IOL API requests
-const makeIOLPostRequest = async <T>(url: string, body: any): Promise<T | null> => {
-    try {
-        const response: any = await fetch(url, {
-            method: 'POST',
-            headers: {
-                'Accept': 'application/json',
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(body)
-        });
-        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-        return (await response.json()) as T;
-    } catch (error) {
-        console.error("Error making IOL post request:", error);
-        return null;
-    }
-};
-
-const makeIOLTokenRequest = async <T>(url: string, body: any): Promise<T | null> => {
+const makeIOLTokenRequest = async <T>(url: string, body: Record<string, string>): Promise<T | null> => {
     try {
         const response = await fetch(url, {
             method: 'POST',
@@ -30,9 +12,70 @@ const makeIOLTokenRequest = async <T>(url: string, body: any): Promise<T | null>
         if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
         return (await response.json()) as T;
     } catch (error) {
-        console.error("Error making IOL request:", error);
+        console.error("Error making IOL token request:", error);
         return null;
     }
 };
 
-export { makeIOLPostRequest, makeIOLTokenRequest };
+const makeIOLGetRequest = async <T>(url: string, accessToken: string): Promise<T | null> => {
+    try {
+        const response = await fetch(url, {
+            method: 'GET',
+            headers: {
+                'Accept': 'application/json',
+                'Authorization': `Bearer ${accessToken}`
+            }
+        });
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        return (await response.json()) as T;
+    } catch (error) {
+        console.error("Error making IOL GET request:", error);
+        return null;
+    }
+};
+
+const makeIOLPostRequest = async <T>(url: string, accessToken: string, body?: unknown): Promise<T | null> => {
+    try {
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${accessToken}`
+            },
+            body: body ? JSON.stringify(body) : undefined
+        });
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+            return (await response.json()) as T;
+        }
+        return null;
+    } catch (error) {
+        console.error("Error making IOL POST request:", error);
+        return null;
+    }
+};
+
+const makeIOLDeleteRequest = async <T>(url: string, accessToken: string): Promise<T | null> => {
+    try {
+        const response = await fetch(url, {
+            method: 'DELETE',
+            headers: {
+                'Accept': 'application/json',
+                'Authorization': `Bearer ${accessToken}`
+            }
+        });
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+            return (await response.json()) as T;
+        }
+        return null;
+    } catch (error) {
+        console.error("Error making IOL DELETE request:", error);
+        return null;
+    }
+};
+
+export { makeIOLTokenRequest, makeIOLGetRequest, makeIOLPostRequest, makeIOLDeleteRequest };
