@@ -18,10 +18,10 @@ MCP server for IOL (InvertirOnline) API - provides tools for authentication, por
 
 ## Files
 
-- `src/tool.ts` → All MCP tool definitions (48 tools)
+- `src/tool.ts` → All MCP tool definitions (51 tools)
 - `src/tokenManager.ts` → Token storage and lifecycle (in-memory)
 - `src/request.ts` → HTTP request helpers with Bearer auth
-- `src/interface.ts` → TypeScript interfaces for IOL API responses
+- `src/interface.ts` → TypeScript type definitions (TokenResponse, StoredToken)
 
 ## Tools Available
 

@@ -1,6 +1,6 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { TokenResponse } from "./interface";
-import { makeIOLTokenRequest, makeIOLGetRequest, makeIOLPostRequest, makeIOLDeleteRequest } from "./request";
+import { IOLMaintenanceError, makeIOLTokenRequest, makeIOLGetRequest, makeIOLPostRequest, makeIOLDeleteRequest } from "./request";
 import { tokenManager } from "./tokenManager";
 import { z } from "zod";
 
@@ -20,7 +20,6 @@ const formatTokenResponse = (username: string, tokenData: TokenResponse): string
 
 const login = async (username: string, password: string): Promise<string> => {
     const tokenData = await makeIOLTokenRequest<TokenResponse>(`${IOL_API_BASE}/token`, { username, password, grant_type: 'password' });
-    if (!tokenData) return "Failed to retrieve token data";
     const accessToken: string = tokenData["access token"] || '';
     if (accessToken === '') return `No active token for ${username}`;
     tokenManager.storeToken(username, tokenData);
@@ -57,6 +56,17 @@ const isTradingEnabled = (): boolean => {
     return value === "true" || value === "1";
 };
 
+const formatError = (error: unknown): string => {
+    if (error instanceof IOLMaintenanceError) {
+        const retry = error.retryAfter ? ` Reintentar en ${error.retryAfter} segundos.` : "";
+        return `API en mantenimiento.${retry}`;
+    }
+    if (error instanceof Error) {
+        return `Error: ${error.message}`;
+    }
+    return "Error desconocido";
+};
+
 const registerTools = (server: McpServer) => {
 
     // ─── Autenticación ────────────────────────────────────────────────────────
@@ -71,8 +81,12 @@ const registerTools = (server: McpServer) => {
             }
         },
         async ({ username, password }) => {
-            const result = await login(username, password);
-            return { content: [{ type: "text", text: result }] };
+            try {
+                const result = await login(username, password);
+                return { content: [{ type: "text", text: result }] };
+            } catch (error) {
+                return { content: [{ type: "text", text: formatError(error) }] };
+            }
         }
     );
 
@@ -89,9 +103,12 @@ const registerTools = (server: McpServer) => {
         async ({ username }) => {
             const accessToken = await ensureToken(username);
             if (!accessToken) return { content: [{ type: "text", text: `No valid token for ${username || "this account"}. Please login first.` }] };
-            const data = await makeIOLGetRequest<any>(`${IOL_API_BASE}/api/v2/estadocuenta`, accessToken);
-            if (!data) return { content: [{ type: "text", text: "Failed to get account status" }] };
-            return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            try {
+                const data = await makeIOLGetRequest<any>(`${IOL_API_BASE}/api/v2/estadocuenta`, accessToken);
+                return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            } catch (error) {
+                return { content: [{ type: "text", text: formatError(error) }] };
+            }
         }
     );
 
@@ -107,9 +124,12 @@ const registerTools = (server: McpServer) => {
         async ({ username, country }) => {
             const accessToken = await ensureToken(username);
             if (!accessToken) return { content: [{ type: "text", text: `No valid token for ${username || "this account"}. Please login first.` }] };
-            const data = await makeIOLGetRequest<any>(`${IOL_API_BASE}/api/v2/portafolio/${country}`, accessToken);
-            if (!data) return { content: [{ type: "text", text: "Failed to get portfolio" }] };
-            return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            try {
+                const data = await makeIOLGetRequest<any>(`${IOL_API_BASE}/api/v2/portafolio/${country}`, accessToken);
+                return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            } catch (error) {
+                return { content: [{ type: "text", text: formatError(error) }] };
+            }
         }
     );
 
@@ -135,9 +155,12 @@ const registerTools = (server: McpServer) => {
             if (to_date) params.append('fechaHasta', to_date);
             const queryString = params.toString();
             const url = `${IOL_API_BASE}/api/v2/operaciones${queryString ? `?${queryString}` : ''}`;
-            const data = await makeIOLGetRequest<any>(url, accessToken);
-            if (!data) return { content: [{ type: "text", text: "Failed to get operations" }] };
-            return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            try {
+                const data = await makeIOLGetRequest<any>(url, accessToken);
+                return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            } catch (error) {
+                return { content: [{ type: "text", text: formatError(error) }] };
+            }
         }
     );
 
@@ -153,9 +176,12 @@ const registerTools = (server: McpServer) => {
         async ({ username, operation_number }) => {
             const accessToken = await ensureToken(username);
             if (!accessToken) return { content: [{ type: "text", text: `No valid token for ${username || "this account"}. Please login first.` }] };
-            const data = await makeIOLGetRequest<any>(`${IOL_API_BASE}/api/v2/operaciones/${operation_number}`, accessToken);
-            if (!data) return { content: [{ type: "text", text: "Failed to get operation" }] };
-            return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            try {
+                const data = await makeIOLGetRequest<any>(`${IOL_API_BASE}/api/v2/operaciones/${operation_number}`, accessToken);
+                return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            } catch (error) {
+                return { content: [{ type: "text", text: formatError(error) }] };
+            }
         }
     );
 
@@ -172,9 +198,13 @@ const registerTools = (server: McpServer) => {
             if (!isTradingEnabled()) return { content: [{ type: "text", text: "Trading not enabled. Set IOL_ENABLE_TRADING=true to enable." }] };
             const accessToken = await ensureToken(username);
             if (!accessToken) return { content: [{ type: "text", text: `No valid token for ${username || "this account"}. Please login first.` }] };
-            const data = await makeIOLDeleteRequest<any>(`${IOL_API_BASE}/api/v2/operaciones/${operation_number}`, accessToken);
-            if (!data) return { content: [{ type: "text", text: "Failed to cancel operation or no response data" }] };
-            return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            try {
+                const data = await makeIOLDeleteRequest<any>(`${IOL_API_BASE}/api/v2/operaciones/${operation_number}`, accessToken);
+                if (!data) return { content: [{ type: "text", text: "Operation cancelled (no response data)" }] };
+                return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            } catch (error) {
+                return { content: [{ type: "text", text: formatError(error) }] };
+            }
         }
     );
 
@@ -191,9 +221,12 @@ const registerTools = (server: McpServer) => {
         async ({ username }) => {
             const accessToken = await ensureToken(username);
             if (!accessToken) return { content: [{ type: "text", text: `No valid token for ${username || "this account"}. Please login first.` }] };
-            const data = await makeIOLGetRequest<any>(`${IOL_API_BASE}/api/v2/Notificacion`, accessToken);
-            if (!data) return { content: [{ type: "text", text: "Failed to get notifications" }] };
-            return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            try {
+                const data = await makeIOLGetRequest<any>(`${IOL_API_BASE}/api/v2/Notificacion`, accessToken);
+                return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            } catch (error) {
+                return { content: [{ type: "text", text: formatError(error) }] };
+            }
         }
     );
 
@@ -210,9 +243,12 @@ const registerTools = (server: McpServer) => {
         async ({ username }) => {
             const accessToken = await ensureToken(username);
             if (!accessToken) return { content: [{ type: "text", text: `No valid token for ${username || "this account"}. Please login first.` }] };
-            const data = await makeIOLGetRequest<any>(`${IOL_API_BASE}/api/v2/datos-perfil`, accessToken);
-            if (!data) return { content: [{ type: "text", text: "Failed to get profile" }] };
-            return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            try {
+                const data = await makeIOLGetRequest<any>(`${IOL_API_BASE}/api/v2/datos-perfil`, accessToken);
+                return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            } catch (error) {
+                return { content: [{ type: "text", text: formatError(error) }] };
+            }
         }
     );
 
@@ -236,10 +272,14 @@ const registerTools = (server: McpServer) => {
             if (!isTradingEnabled()) return { content: [{ type: "text", text: "Trading not enabled. Set IOL_ENABLE_TRADING=true to enable." }] };
             const accessToken = await ensureToken(username);
             if (!accessToken) return { content: [{ type: "text", text: `No valid token for ${username || "this account"}. Please login first.` }] };
-            const order = { mercado: market, simbolo: symbol, cantidad: quantity, precio: price, plazo: term, validez: expiry };
-            const data = await makeIOLPostRequest<any>(`${IOL_API_BASE}/api/v2/operar/Comprar`, accessToken, order);
-            if (!data) return { content: [{ type: "text", text: "Buy order sent (no response data or error)" }] };
-            return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            try {
+                const order = { mercado: market, simbolo: symbol, cantidad: quantity, precio: price, plazo: term, validez: expiry };
+                const data = await makeIOLPostRequest<any>(`${IOL_API_BASE}/api/v2/operar/Comprar`, accessToken, order);
+                if (!data) return { content: [{ type: "text", text: "Buy order sent (no response data)" }] };
+                return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            } catch (error) {
+                return { content: [{ type: "text", text: formatError(error) }] };
+            }
         }
     );
 
@@ -261,10 +301,14 @@ const registerTools = (server: McpServer) => {
             if (!isTradingEnabled()) return { content: [{ type: "text", text: "Trading not enabled. Set IOL_ENABLE_TRADING=true to enable." }] };
             const accessToken = await ensureToken(username);
             if (!accessToken) return { content: [{ type: "text", text: `No valid token for ${username || "this account"}. Please login first.` }] };
-            const order = { mercado: market, simbolo: symbol, cantidad: quantity, precio: price, plazo: term, validez: expiry };
-            const data = await makeIOLPostRequest<any>(`${IOL_API_BASE}/api/v2/operar/Vender`, accessToken, order);
-            if (!data) return { content: [{ type: "text", text: "Sell order sent (no response data or error)" }] };
-            return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            try {
+                const order = { mercado: market, simbolo: symbol, cantidad: quantity, precio: price, plazo: term, validez: expiry };
+                const data = await makeIOLPostRequest<any>(`${IOL_API_BASE}/api/v2/operar/Vender`, accessToken, order);
+                if (!data) return { content: [{ type: "text", text: "Sell order sent (no response data)" }] };
+                return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            } catch (error) {
+                return { content: [{ type: "text", text: formatError(error) }] };
+            }
         }
     );
 
@@ -286,10 +330,14 @@ const registerTools = (server: McpServer) => {
             if (!isTradingEnabled()) return { content: [{ type: "text", text: "Trading not enabled. Set IOL_ENABLE_TRADING=true to enable." }] };
             const accessToken = await ensureToken(username);
             if (!accessToken) return { content: [{ type: "text", text: `No valid token for ${username || "this account"}. Please login first.` }] };
-            const order = { mercado: market, simbolo: symbol, cantidad: quantity, precio: price, plazo: term, validez: expiry };
-            const data = await makeIOLPostRequest<any>(`${IOL_API_BASE}/api/v2/operar/ComprarEspecieD`, accessToken, order);
-            if (!data) return { content: [{ type: "text", text: "Buy D order sent (no response data or error)" }] };
-            return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            try {
+                const order = { mercado: market, simbolo: symbol, cantidad: quantity, precio: price, plazo: term, validez: expiry };
+                const data = await makeIOLPostRequest<any>(`${IOL_API_BASE}/api/v2/operar/ComprarEspecieD`, accessToken, order);
+                if (!data) return { content: [{ type: "text", text: "Buy D order sent (no response data)" }] };
+                return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            } catch (error) {
+                return { content: [{ type: "text", text: formatError(error) }] };
+            }
         }
     );
 
@@ -311,10 +359,14 @@ const registerTools = (server: McpServer) => {
             if (!isTradingEnabled()) return { content: [{ type: "text", text: "Trading not enabled. Set IOL_ENABLE_TRADING=true to enable." }] };
             const accessToken = await ensureToken(username);
             if (!accessToken) return { content: [{ type: "text", text: `No valid token for ${username || "this account"}. Please login first.` }] };
-            const order = { mercado: market, simbolo: symbol, cantidad: quantity, precio: price, plazo: term, validez: expiry };
-            const data = await makeIOLPostRequest<any>(`${IOL_API_BASE}/api/v2/operar/VenderEspecieD`, accessToken, order);
-            if (!data) return { content: [{ type: "text", text: "Sell D order sent (no response data or error)" }] };
-            return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            try {
+                const order = { mercado: market, simbolo: symbol, cantidad: quantity, precio: price, plazo: term, validez: expiry };
+                const data = await makeIOLPostRequest<any>(`${IOL_API_BASE}/api/v2/operar/VenderEspecieD`, accessToken, order);
+                if (!data) return { content: [{ type: "text", text: "Sell D order sent (no response data)" }] };
+                return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            } catch (error) {
+                return { content: [{ type: "text", text: formatError(error) }] };
+            }
         }
     );
 
@@ -332,9 +384,13 @@ const registerTools = (server: McpServer) => {
             if (!isTradingEnabled()) return { content: [{ type: "text", text: "Trading not enabled. Set IOL_ENABLE_TRADING=true to enable." }] };
             const accessToken = await ensureToken(username);
             if (!accessToken) return { content: [{ type: "text", text: `No valid token for ${username || "this account"}. Please login first.` }] };
-            const data = await makeIOLPostRequest<any>(`${IOL_API_BASE}/api/v2/operar/suscripcion/fci`, accessToken, { simbolo: symbol, monto: amount });
-            if (!data) return { content: [{ type: "text", text: "FCI subscription sent (no response data or error)" }] };
-            return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            try {
+                const data = await makeIOLPostRequest<any>(`${IOL_API_BASE}/api/v2/operar/suscripcion/fci`, accessToken, { simbolo: symbol, monto: amount });
+                if (!data) return { content: [{ type: "text", text: "FCI subscription sent (no response data)" }] };
+                return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            } catch (error) {
+                return { content: [{ type: "text", text: formatError(error) }] };
+            }
         }
     );
 
@@ -352,9 +408,13 @@ const registerTools = (server: McpServer) => {
             if (!isTradingEnabled()) return { content: [{ type: "text", text: "Trading not enabled. Set IOL_ENABLE_TRADING=true to enable." }] };
             const accessToken = await ensureToken(username);
             if (!accessToken) return { content: [{ type: "text", text: `No valid token for ${username || "this account"}. Please login first.` }] };
-            const data = await makeIOLPostRequest<any>(`${IOL_API_BASE}/api/v2/operar/rescate/fci`, accessToken, { simbolo: symbol, cantidad: quantity });
-            if (!data) return { content: [{ type: "text", text: "FCI rescue sent (no response data or error)" }] };
-            return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            try {
+                const data = await makeIOLPostRequest<any>(`${IOL_API_BASE}/api/v2/operar/rescate/fci`, accessToken, { simbolo: symbol, cantidad: quantity });
+                if (!data) return { content: [{ type: "text", text: "FCI rescue sent (no response data)" }] };
+                return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            } catch (error) {
+                return { content: [{ type: "text", text: formatError(error) }] };
+            }
         }
     );
 
@@ -369,9 +429,12 @@ const registerTools = (server: McpServer) => {
         async ({ username }) => {
             const accessToken = await ensureToken(username);
             if (!accessToken) return { content: [{ type: "text", text: `No valid token for ${username || "this account"}. Please login first.` }] };
-            const data = await makeIOLGetRequest<any>(`${IOL_API_BASE}/api/v2/operar/CPD/PuedeOperar`, accessToken);
-            if (!data) return { content: [{ type: "text", text: "Failed to check CPD status" }] };
-            return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            try {
+                const data = await makeIOLGetRequest<any>(`${IOL_API_BASE}/api/v2/operar/CPD/PuedeOperar`, accessToken);
+                return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            } catch (error) {
+                return { content: [{ type: "text", text: formatError(error) }] };
+            }
         }
     );
 
@@ -388,9 +451,12 @@ const registerTools = (server: McpServer) => {
         async ({ username, estado, segmento }) => {
             const accessToken = await ensureToken(username);
             if (!accessToken) return { content: [{ type: "text", text: `No valid token for ${username || "this account"}. Please login first.` }] };
-            const data = await makeIOLGetRequest<any>(`${IOL_API_BASE}/api/v2/operar/CPD/${estado}/${segmento}`, accessToken);
-            if (!data) return { content: [{ type: "text", text: "Failed to get CPD" }] };
-            return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            try {
+                const data = await makeIOLGetRequest<any>(`${IOL_API_BASE}/api/v2/operar/CPD/${estado}/${segmento}`, accessToken);
+                return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            } catch (error) {
+                return { content: [{ type: "text", text: formatError(error) }] };
+            }
         }
     );
 
@@ -408,9 +474,12 @@ const registerTools = (server: McpServer) => {
         async ({ username, importe, plazo, tasa }) => {
             const accessToken = await ensureToken(username);
             if (!accessToken) return { content: [{ type: "text", text: `No valid token for ${username || "this account"}. Please login first.` }] };
-            const data = await makeIOLGetRequest<any>(`${IOL_API_BASE}/api/v2/operar/CPD/Comisiones/${importe}/${plazo}/${tasa}`, accessToken);
-            if (!data) return { content: [{ type: "text", text: "Failed to get CPD commissions" }] };
-            return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            try {
+                const data = await makeIOLGetRequest<any>(`${IOL_API_BASE}/api/v2/operar/CPD/Comisiones/${importe}/${plazo}/${tasa}`, accessToken);
+                return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            } catch (error) {
+                return { content: [{ type: "text", text: formatError(error) }] };
+            }
         }
     );
 
@@ -427,9 +496,13 @@ const registerTools = (server: McpServer) => {
             if (!isTradingEnabled()) return { content: [{ type: "text", text: "Trading not enabled. Set IOL_ENABLE_TRADING=true to enable." }] };
             const accessToken = await ensureToken(username);
             if (!accessToken) return { content: [{ type: "text", text: `No valid token for ${username || "this account"}. Please login first.` }] };
-            const data = await makeIOLPostRequest<any>(`${IOL_API_BASE}/api/v2/operar/CPD`, accessToken, body);
-            if (!data) return { content: [{ type: "text", text: "CPD order sent (no response data or error)" }] };
-            return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            try {
+                const data = await makeIOLPostRequest<any>(`${IOL_API_BASE}/api/v2/operar/CPD`, accessToken, body);
+                if (!data) return { content: [{ type: "text", text: "CPD order sent (no response data)" }] };
+                return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            } catch (error) {
+                return { content: [{ type: "text", text: formatError(error) }] };
+            }
         }
     );
 
@@ -444,9 +517,12 @@ const registerTools = (server: McpServer) => {
         async ({ username }) => {
             const accessToken = await ensureToken(username);
             if (!accessToken) return { content: [{ type: "text", text: `No valid token for ${username || "this account"}. Please login first.` }] };
-            const data = await makeIOLPostRequest<any>(`${IOL_API_BASE}/api/v2/operar/Token`, accessToken);
-            if (!data) return { content: [{ type: "text", text: "Failed to get operate token" }] };
-            return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            try {
+                const data = await makeIOLPostRequest<any>(`${IOL_API_BASE}/api/v2/operar/Token`, accessToken);
+                return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            } catch (error) {
+                return { content: [{ type: "text", text: formatError(error) }] };
+            }
         }
     );
 
@@ -464,9 +540,12 @@ const registerTools = (server: McpServer) => {
         async ({ username, amount }) => {
             const accessToken = await ensureToken(username);
             if (!accessToken) return { content: [{ type: "text", text: `No valid token for ${username || "this account"}. Please login first.` }] };
-            const data = await makeIOLGetRequest<any>(`${IOL_API_BASE}/api/v2/OperatoriaSimplificada/MontosEstimados/${amount}`, accessToken);
-            if (!data) return { content: [{ type: "text", text: "Failed to get estimated amounts" }] };
-            return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            try {
+                const data = await makeIOLGetRequest<any>(`${IOL_API_BASE}/api/v2/OperatoriaSimplificada/MontosEstimados/${amount}`, accessToken);
+                return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            } catch (error) {
+                return { content: [{ type: "text", text: formatError(error) }] };
+            }
         }
     );
 
@@ -482,9 +561,12 @@ const registerTools = (server: McpServer) => {
         async ({ username, operation_type_id }) => {
             const accessToken = await ensureToken(username);
             if (!accessToken) return { content: [{ type: "text", text: `No valid token for ${username || "this account"}. Please login first.` }] };
-            const data = await makeIOLGetRequest<any>(`${IOL_API_BASE}/api/v2/OperatoriaSimplificada/${operation_type_id}/Parametros`, accessToken);
-            if (!data) return { content: [{ type: "text", text: "Failed to get parameters" }] };
-            return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            try {
+                const data = await makeIOLGetRequest<any>(`${IOL_API_BASE}/api/v2/OperatoriaSimplificada/${operation_type_id}/Parametros`, accessToken);
+                return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            } catch (error) {
+                return { content: [{ type: "text", text: formatError(error) }] };
+            }
         }
     );
 
@@ -501,9 +583,12 @@ const registerTools = (server: McpServer) => {
         async ({ username, amount, operation_type_id }) => {
             const accessToken = await ensureToken(username);
             if (!accessToken) return { content: [{ type: "text", text: `No valid token for ${username || "this account"}. Please login first.` }] };
-            const data = await makeIOLGetRequest<any>(`${IOL_API_BASE}/api/v2/OperatoriaSimplificada/Validar/${amount}/${operation_type_id}`, accessToken);
-            if (!data) return { content: [{ type: "text", text: "Failed to validate operation" }] };
-            return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            try {
+                const data = await makeIOLGetRequest<any>(`${IOL_API_BASE}/api/v2/OperatoriaSimplificada/Validar/${amount}/${operation_type_id}`, accessToken);
+                return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            } catch (error) {
+                return { content: [{ type: "text", text: formatError(error) }] };
+            }
         }
     );
 
@@ -519,9 +604,12 @@ const registerTools = (server: McpServer) => {
         async ({ username, amount }) => {
             const accessToken = await ensureToken(username);
             if (!accessToken) return { content: [{ type: "text", text: `No valid token for ${username || "this account"}. Please login first.` }] };
-            const data = await makeIOLGetRequest<any>(`${IOL_API_BASE}/api/v2/OperatoriaSimplificada/VentaMepSimple/MontosEstimados/${amount}`, accessToken);
-            if (!data) return { content: [{ type: "text", text: "Failed to get MEP amounts" }] };
-            return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            try {
+                const data = await makeIOLGetRequest<any>(`${IOL_API_BASE}/api/v2/OperatoriaSimplificada/VentaMepSimple/MontosEstimados/${amount}`, accessToken);
+                return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            } catch (error) {
+                return { content: [{ type: "text", text: formatError(error) }] };
+            }
         }
     );
 
@@ -538,9 +626,13 @@ const registerTools = (server: McpServer) => {
             if (!isTradingEnabled()) return { content: [{ type: "text", text: "Trading not enabled. Set IOL_ENABLE_TRADING=true to enable." }] };
             const accessToken = await ensureToken(username);
             if (!accessToken) return { content: [{ type: "text", text: `No valid token for ${username || "this account"}. Please login first.` }] };
-            const data = await makeIOLPostRequest<any>(`${IOL_API_BASE}/api/v2/OperatoriaSimplificada/Comprar`, accessToken, body);
-            if (!data) return { content: [{ type: "text", text: "Simplified buy sent (no response data or error)" }] };
-            return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            try {
+                const data = await makeIOLPostRequest<any>(`${IOL_API_BASE}/api/v2/OperatoriaSimplificada/Comprar`, accessToken, body);
+                if (!data) return { content: [{ type: "text", text: "Simplified buy sent (no response data)" }] };
+                return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            } catch (error) {
+                return { content: [{ type: "text", text: formatError(error) }] };
+            }
         }
     );
 
@@ -557,9 +649,12 @@ const registerTools = (server: McpServer) => {
         async ({ username }) => {
             const accessToken = await ensureToken(username);
             if (!accessToken) return { content: [{ type: "text", text: `No valid token for ${username || "this account"}. Please login first.` }] };
-            const data = await makeIOLGetRequest<any>(`${IOL_API_BASE}/api/v2/Titulos/FCI`, accessToken);
-            if (!data) return { content: [{ type: "text", text: "Failed to get FCI list" }] };
-            return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            try {
+                const data = await makeIOLGetRequest<any>(`${IOL_API_BASE}/api/v2/Titulos/FCI`, accessToken);
+                return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            } catch (error) {
+                return { content: [{ type: "text", text: formatError(error) }] };
+            }
         }
     );
 
@@ -575,9 +670,12 @@ const registerTools = (server: McpServer) => {
         async ({ username, symbol }) => {
             const accessToken = await ensureToken(username);
             if (!accessToken) return { content: [{ type: "text", text: `No valid token for ${username || "this account"}. Please login first.` }] };
-            const data = await makeIOLGetRequest<any>(`${IOL_API_BASE}/api/v2/Titulos/FCI/${symbol}`, accessToken);
-            if (!data) return { content: [{ type: "text", text: "Failed to get FCI" }] };
-            return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            try {
+                const data = await makeIOLGetRequest<any>(`${IOL_API_BASE}/api/v2/Titulos/FCI/${symbol}`, accessToken);
+                return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            } catch (error) {
+                return { content: [{ type: "text", text: formatError(error) }] };
+            }
         }
     );
 
@@ -592,9 +690,12 @@ const registerTools = (server: McpServer) => {
         async ({ username }) => {
             const accessToken = await ensureToken(username);
             if (!accessToken) return { content: [{ type: "text", text: `No valid token for ${username || "this account"}. Please login first.` }] };
-            const data = await makeIOLGetRequest<any>(`${IOL_API_BASE}/api/v2/Titulos/FCI/TipoFondos`, accessToken);
-            if (!data) return { content: [{ type: "text", text: "Failed to get FCI types" }] };
-            return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            try {
+                const data = await makeIOLGetRequest<any>(`${IOL_API_BASE}/api/v2/Titulos/FCI/TipoFondos`, accessToken);
+                return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            } catch (error) {
+                return { content: [{ type: "text", text: formatError(error) }] };
+            }
         }
     );
 
@@ -609,9 +710,12 @@ const registerTools = (server: McpServer) => {
         async ({ username }) => {
             const accessToken = await ensureToken(username);
             if (!accessToken) return { content: [{ type: "text", text: `No valid token for ${username || "this account"}. Please login first.` }] };
-            const data = await makeIOLGetRequest<any>(`${IOL_API_BASE}/api/v2/Titulos/FCI/Administradoras`, accessToken);
-            if (!data) return { content: [{ type: "text", text: "Failed to get FCI administrators" }] };
-            return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            try {
+                const data = await makeIOLGetRequest<any>(`${IOL_API_BASE}/api/v2/Titulos/FCI/Administradoras`, accessToken);
+                return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            } catch (error) {
+                return { content: [{ type: "text", text: formatError(error) }] };
+            }
         }
     );
 
@@ -627,9 +731,12 @@ const registerTools = (server: McpServer) => {
         async ({ username, administrator }) => {
             const accessToken = await ensureToken(username);
             if (!accessToken) return { content: [{ type: "text", text: `No valid token for ${username || "this account"}. Please login first.` }] };
-            const data = await makeIOLGetRequest<any>(`${IOL_API_BASE}/api/v2/Titulos/FCI/Administradoras/${administrator}/TipoFondos`, accessToken);
-            if (!data) return { content: [{ type: "text", text: "Failed to get FCI types" }] };
-            return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            try {
+                const data = await makeIOLGetRequest<any>(`${IOL_API_BASE}/api/v2/Titulos/FCI/Administradoras/${administrator}/TipoFondos`, accessToken);
+                return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            } catch (error) {
+                return { content: [{ type: "text", text: formatError(error) }] };
+            }
         }
     );
 
@@ -646,9 +753,12 @@ const registerTools = (server: McpServer) => {
         async ({ username, administrator, fund_type }) => {
             const accessToken = await ensureToken(username);
             if (!accessToken) return { content: [{ type: "text", text: `No valid token for ${username || "this account"}. Please login first.` }] };
-            const data = await makeIOLGetRequest<any>(`${IOL_API_BASE}/api/v2/Titulos/FCI/Administradoras/${administrator}/TipoFondos/${fund_type}`, accessToken);
-            if (!data) return { content: [{ type: "text", text: "Failed to get FCI" }] };
-            return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            try {
+                const data = await makeIOLGetRequest<any>(`${IOL_API_BASE}/api/v2/Titulos/FCI/Administradoras/${administrator}/TipoFondos/${fund_type}`, accessToken);
+                return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            } catch (error) {
+                return { content: [{ type: "text", text: formatError(error) }] };
+            }
         }
     );
 
@@ -665,9 +775,12 @@ const registerTools = (server: McpServer) => {
         async ({ username, market, symbol }) => {
             const accessToken = await ensureToken(username);
             if (!accessToken) return { content: [{ type: "text", text: `No valid token for ${username || "this account"}. Please login first.` }] };
-            const data = await makeIOLGetRequest<any>(`${IOL_API_BASE}/api/v2/${market}/Titulos/${symbol}`, accessToken);
-            if (!data) return { content: [{ type: "text", text: "Failed to get security" }] };
-            return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            try {
+                const data = await makeIOLGetRequest<any>(`${IOL_API_BASE}/api/v2/${market}/Titulos/${symbol}`, accessToken);
+                return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            } catch (error) {
+                return { content: [{ type: "text", text: formatError(error) }] };
+            }
         }
     );
 
@@ -684,9 +797,12 @@ const registerTools = (server: McpServer) => {
         async ({ username, market, symbol }) => {
             const accessToken = await ensureToken(username);
             if (!accessToken) return { content: [{ type: "text", text: `No valid token for ${username || "this account"}. Please login first.` }] };
-            const data = await makeIOLGetRequest<any>(`${IOL_API_BASE}/api/v2/${market}/Titulos/${symbol}/Opciones`, accessToken);
-            if (!data) return { content: [{ type: "text", text: "Failed to get options" }] };
-            return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            try {
+                const data = await makeIOLGetRequest<any>(`${IOL_API_BASE}/api/v2/${market}/Titulos/${symbol}/Opciones`, accessToken);
+                return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            } catch (error) {
+                return { content: [{ type: "text", text: formatError(error) }] };
+            }
         }
     );
 
@@ -704,9 +820,12 @@ const registerTools = (server: McpServer) => {
         async ({ username, country }) => {
             const accessToken = await ensureToken(username);
             if (!accessToken) return { content: [{ type: "text", text: `No valid token for ${username || "this account"}. Please login first.` }] };
-            const data = await makeIOLGetRequest<any>(`${IOL_API_BASE}/api/v2/${country}/Titulos/Cotizacion/Instrumentos`, accessToken);
-            if (!data) return { content: [{ type: "text", text: "Failed to get instruments" }] };
-            return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            try {
+                const data = await makeIOLGetRequest<any>(`${IOL_API_BASE}/api/v2/${country}/Titulos/Cotizacion/Instrumentos`, accessToken);
+                return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            } catch (error) {
+                return { content: [{ type: "text", text: formatError(error) }] };
+            }
         }
     );
 
@@ -723,9 +842,12 @@ const registerTools = (server: McpServer) => {
         async ({ username, instrument, country }) => {
             const accessToken = await ensureToken(username);
             if (!accessToken) return { content: [{ type: "text", text: `No valid token for ${username || "this account"}. Please login first.` }] };
-            const data = await makeIOLGetRequest<any>(`${IOL_API_BASE}/api/v2/${country}/Titulos/Cotizacion/Paneles/${instrument}`, accessToken);
-            if (!data) return { content: [{ type: "text", text: "Failed to get panels" }] };
-            return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            try {
+                const data = await makeIOLGetRequest<any>(`${IOL_API_BASE}/api/v2/${country}/Titulos/Cotizacion/Paneles/${instrument}`, accessToken);
+                return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            } catch (error) {
+                return { content: [{ type: "text", text: formatError(error) }] };
+            }
         }
     );
 
@@ -743,9 +865,12 @@ const registerTools = (server: McpServer) => {
         async ({ username, instrument, panel, country }) => {
             const accessToken = await ensureToken(username);
             if (!accessToken) return { content: [{ type: "text", text: `No valid token for ${username || "this account"}. Please login first.` }] };
-            const data = await makeIOLGetRequest<any>(`${IOL_API_BASE}/api/v2/Cotizaciones/${instrument}/${panel}/${country}`, accessToken);
-            if (!data) return { content: [{ type: "text", text: "Failed to get quotes" }] };
-            return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            try {
+                const data = await makeIOLGetRequest<any>(`${IOL_API_BASE}/api/v2/Cotizaciones/${instrument}/${panel}/${country}`, accessToken);
+                return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            } catch (error) {
+                return { content: [{ type: "text", text: formatError(error) }] };
+            }
         }
     );
 
@@ -762,9 +887,12 @@ const registerTools = (server: McpServer) => {
         async ({ username, instrument, country }) => {
             const accessToken = await ensureToken(username);
             if (!accessToken) return { content: [{ type: "text", text: `No valid token for ${username || "this account"}. Please login first.` }] };
-            const data = await makeIOLGetRequest<any>(`${IOL_API_BASE}/api/v2/Cotizaciones/${instrument}/${country}/Todos`, accessToken);
-            if (!data) return { content: [{ type: "text", text: "Failed to get quotes" }] };
-            return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            try {
+                const data = await makeIOLGetRequest<any>(`${IOL_API_BASE}/api/v2/Cotizaciones/${instrument}/${country}/Todos`, accessToken);
+                return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            } catch (error) {
+                return { content: [{ type: "text", text: formatError(error) }] };
+            }
         }
     );
 
@@ -781,9 +909,12 @@ const registerTools = (server: McpServer) => {
         async ({ username, market, symbol }) => {
             const accessToken = await ensureToken(username);
             if (!accessToken) return { content: [{ type: "text", text: `No valid token for ${username || "this account"}. Please login first.` }] };
-            const data = await makeIOLGetRequest<any>(`${IOL_API_BASE}/api/v2/${market}/Titulos/${symbol}/Cotizacion`, accessToken);
-            if (!data) return { content: [{ type: "text", text: "Failed to get quote" }] };
-            return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            try {
+                const data = await makeIOLGetRequest<any>(`${IOL_API_BASE}/api/v2/${market}/Titulos/${symbol}/Cotizacion`, accessToken);
+                return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            } catch (error) {
+                return { content: [{ type: "text", text: formatError(error) }] };
+            }
         }
     );
 
@@ -800,9 +931,12 @@ const registerTools = (server: McpServer) => {
         async ({ username, market, symbol }) => {
             const accessToken = await ensureToken(username);
             if (!accessToken) return { content: [{ type: "text", text: `No valid token for ${username || "this account"}. Please login first.` }] };
-            const data = await makeIOLGetRequest<any>(`${IOL_API_BASE}/api/v2/${market}/Titulos/${symbol}/CotizacionDetalle`, accessToken);
-            if (!data) return { content: [{ type: "text", text: "Failed to get quote detail" }] };
-            return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            try {
+                const data = await makeIOLGetRequest<any>(`${IOL_API_BASE}/api/v2/${market}/Titulos/${symbol}/CotizacionDetalle`, accessToken);
+                return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            } catch (error) {
+                return { content: [{ type: "text", text: formatError(error) }] };
+            }
         }
     );
 
@@ -820,9 +954,12 @@ const registerTools = (server: McpServer) => {
         async ({ username, market, symbol, term }) => {
             const accessToken = await ensureToken(username);
             if (!accessToken) return { content: [{ type: "text", text: `No valid token for ${username || "this account"}. Please login first.` }] };
-            const data = await makeIOLGetRequest<any>(`${IOL_API_BASE}/api/v2/${market}/Titulos/${symbol}/CotizacionDetalleMobile/${term}`, accessToken);
-            if (!data) return { content: [{ type: "text", text: "Failed to get quote detail" }] };
-            return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            try {
+                const data = await makeIOLGetRequest<any>(`${IOL_API_BASE}/api/v2/${market}/Titulos/${symbol}/CotizacionDetalleMobile/${term}`, accessToken);
+                return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            } catch (error) {
+                return { content: [{ type: "text", text: formatError(error) }] };
+            }
         }
     );
 
@@ -842,9 +979,12 @@ const registerTools = (server: McpServer) => {
         async ({ username, market, symbol, from_date, to_date, adjusted }) => {
             const accessToken = await ensureToken(username);
             if (!accessToken) return { content: [{ type: "text", text: `No valid token for ${username || "this account"}. Please login first.` }] };
-            const data = await makeIOLGetRequest<any>(`${IOL_API_BASE}/api/v2/${market}/Titulos/${symbol}/Cotizacion/seriehistorica/${from_date}/${to_date}/${adjusted}`, accessToken);
-            if (!data) return { content: [{ type: "text", text: "Failed to get historical quotes" }] };
-            return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            try {
+                const data = await makeIOLGetRequest<any>(`${IOL_API_BASE}/api/v2/${market}/Titulos/${symbol}/Cotizacion/seriehistorica/${from_date}/${to_date}/${adjusted}`, accessToken);
+                return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            } catch (error) {
+                return { content: [{ type: "text", text: formatError(error) }] };
+            }
         }
     );
 
@@ -860,9 +1000,12 @@ const registerTools = (server: McpServer) => {
         async ({ username, symbol }) => {
             const accessToken = await ensureToken(username);
             if (!accessToken) return { content: [{ type: "text", text: `No valid token for ${username || "this account"}. Please login first.` }] };
-            const data = await makeIOLGetRequest<any>(`${IOL_API_BASE}/api/v2/Cotizaciones/MEP/${symbol}`, accessToken);
-            if (!data) return { content: [{ type: "text", text: "Failed to get MEP quote" }] };
-            return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            try {
+                const data = await makeIOLGetRequest<any>(`${IOL_API_BASE}/api/v2/Cotizaciones/MEP/${symbol}`, accessToken);
+                return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            } catch (error) {
+                return { content: [{ type: "text", text: formatError(error) }] };
+            }
         }
     );
 
@@ -878,9 +1021,13 @@ const registerTools = (server: McpServer) => {
         async ({ username, body }) => {
             const accessToken = await ensureToken(username);
             if (!accessToken) return { content: [{ type: "text", text: `No valid token for ${username || "this account"}. Please login first.` }] };
-            const data = await makeIOLPostRequest<any>(`${IOL_API_BASE}/api/v2/Cotizaciones/MEP`, accessToken, body);
-            if (!data) return { content: [{ type: "text", text: "Failed to get MEP quotes" }] };
-            return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            try {
+                const data = await makeIOLPostRequest<any>(`${IOL_API_BASE}/api/v2/Cotizaciones/MEP`, accessToken, body);
+                if (!data) return { content: [{ type: "text", text: "Failed to get MEP quotes (no response data)" }] };
+                return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            } catch (error) {
+                return { content: [{ type: "text", text: formatError(error) }] };
+            }
         }
     );
 
@@ -897,9 +1044,12 @@ const registerTools = (server: McpServer) => {
         async ({ username, instrument, country }) => {
             const accessToken = await ensureToken(username);
             if (!accessToken) return { content: [{ type: "text", text: `No valid token for ${username || "this account"}. Please login first.` }] };
-            const data = await makeIOLGetRequest<any>(`${IOL_API_BASE}/api/v2/cotizaciones-orleans/${instrument}/${country}/Todos`, accessToken);
-            if (!data) return { content: [{ type: "text", text: "Failed to get Orleans quotes" }] };
-            return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            try {
+                const data = await makeIOLGetRequest<any>(`${IOL_API_BASE}/api/v2/cotizaciones-orleans/${instrument}/${country}/Todos`, accessToken);
+                return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            } catch (error) {
+                return { content: [{ type: "text", text: formatError(error) }] };
+            }
         }
     );
 
@@ -916,9 +1066,12 @@ const registerTools = (server: McpServer) => {
         async ({ username, instrument, country }) => {
             const accessToken = await ensureToken(username);
             if (!accessToken) return { content: [{ type: "text", text: `No valid token for ${username || "this account"}. Please login first.` }] };
-            const data = await makeIOLGetRequest<any>(`${IOL_API_BASE}/api/v2/cotizaciones-orleans/${instrument}/${country}/Operables`, accessToken);
-            if (!data) return { content: [{ type: "text", text: "Failed to get Orleans operable quotes" }] };
-            return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            try {
+                const data = await makeIOLGetRequest<any>(`${IOL_API_BASE}/api/v2/cotizaciones-orleans/${instrument}/${country}/Operables`, accessToken);
+                return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            } catch (error) {
+                return { content: [{ type: "text", text: formatError(error) }] };
+            }
         }
     );
 
@@ -935,9 +1088,12 @@ const registerTools = (server: McpServer) => {
         async ({ username, instrument, country }) => {
             const accessToken = await ensureToken(username);
             if (!accessToken) return { content: [{ type: "text", text: `No valid token for ${username || "this account"}. Please login first.` }] };
-            const data = await makeIOLGetRequest<any>(`${IOL_API_BASE}/api/v2/cotizaciones-orleans-panel/${instrument}/${country}/Todos`, accessToken);
-            if (!data) return { content: [{ type: "text", text: "Failed to get Orleans panel quotes" }] };
-            return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            try {
+                const data = await makeIOLGetRequest<any>(`${IOL_API_BASE}/api/v2/cotizaciones-orleans-panel/${instrument}/${country}/Todos`, accessToken);
+                return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            } catch (error) {
+                return { content: [{ type: "text", text: formatError(error) }] };
+            }
         }
     );
 
@@ -954,9 +1110,12 @@ const registerTools = (server: McpServer) => {
         async ({ username, instrument, country }) => {
             const accessToken = await ensureToken(username);
             if (!accessToken) return { content: [{ type: "text", text: `No valid token for ${username || "this account"}. Please login first.` }] };
-            const data = await makeIOLGetRequest<any>(`${IOL_API_BASE}/api/v2/cotizaciones-orleans-panel/${instrument}/${country}/Operables`, accessToken);
-            if (!data) return { content: [{ type: "text", text: "Failed to get Orleans panel operable quotes" }] };
-            return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            try {
+                const data = await makeIOLGetRequest<any>(`${IOL_API_BASE}/api/v2/cotizaciones-orleans-panel/${instrument}/${country}/Operables`, accessToken);
+                return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            } catch (error) {
+                return { content: [{ type: "text", text: formatError(error) }] };
+            }
         }
     );
 
@@ -973,9 +1132,12 @@ const registerTools = (server: McpServer) => {
         async ({ username }) => {
             const accessToken = await ensureToken(username);
             if (!accessToken) return { content: [{ type: "text", text: `No valid token for ${username || "this account"}. Please login first.` }] };
-            const data = await makeIOLGetRequest<any>(`${IOL_API_BASE}/api/v2/asesores/test-inversor`, accessToken);
-            if (!data) return { content: [{ type: "text", text: "Failed to get advisor test" }] };
-            return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            try {
+                const data = await makeIOLGetRequest<any>(`${IOL_API_BASE}/api/v2/asesores/test-inversor`, accessToken);
+                return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            } catch (error) {
+                return { content: [{ type: "text", text: formatError(error) }] };
+            }
         }
     );
 
@@ -992,9 +1154,13 @@ const registerTools = (server: McpServer) => {
             if (!isTradingEnabled()) return { content: [{ type: "text", text: "Trading not enabled. Set IOL_ENABLE_TRADING=true to enable." }] };
             const accessToken = await ensureToken(username);
             if (!accessToken) return { content: [{ type: "text", text: `No valid token for ${username || "this account"}. Please login first.` }] };
-            const data = await makeIOLPostRequest<any>(`${IOL_API_BASE}/api/v2/asesores/test-inversor`, accessToken, body);
-            if (!data) return { content: [{ type: "text", text: "Failed to submit advisor test" }] };
-            return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            try {
+                const data = await makeIOLPostRequest<any>(`${IOL_API_BASE}/api/v2/asesores/test-inversor`, accessToken, body);
+                if (!data) return { content: [{ type: "text", text: "Failed to submit advisor test (no response data)" }] };
+                return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            } catch (error) {
+                return { content: [{ type: "text", text: formatError(error) }] };
+            }
         }
     );
 
@@ -1012,9 +1178,13 @@ const registerTools = (server: McpServer) => {
             if (!isTradingEnabled()) return { content: [{ type: "text", text: "Trading not enabled. Set IOL_ENABLE_TRADING=true to enable." }] };
             const accessToken = await ensureToken(username);
             if (!accessToken) return { content: [{ type: "text", text: `No valid token for ${username || "this account"}. Please login first.` }] };
-            const data = await makeIOLPostRequest<any>(`${IOL_API_BASE}/api/v2/asesores/test-inversor/${client_id}`, accessToken, body);
-            if (!data) return { content: [{ type: "text", text: "Failed to submit advisor test for client" }] };
-            return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            try {
+                const data = await makeIOLPostRequest<any>(`${IOL_API_BASE}/api/v2/asesores/test-inversor/${client_id}`, accessToken, body);
+                if (!data) return { content: [{ type: "text", text: "Failed to submit advisor test for client (no response data)" }] };
+                return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            } catch (error) {
+                return { content: [{ type: "text", text: formatError(error) }] };
+            }
         }
     );
 
@@ -1030,9 +1200,13 @@ const registerTools = (server: McpServer) => {
         async ({ username, body }) => {
             const accessToken = await ensureToken(username);
             if (!accessToken) return { content: [{ type: "text", text: `No valid token for ${username || "this account"}. Please login first.` }] };
-            const data = await makeIOLPostRequest<any>(`${IOL_API_BASE}/api/v2/Asesor/Movimientos`, accessToken, body);
-            if (!data) return { content: [{ type: "text", text: "Failed to get advisor movements" }] };
-            return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            try {
+                const data = await makeIOLPostRequest<any>(`${IOL_API_BASE}/api/v2/Asesor/Movimientos`, accessToken, body);
+                if (!data) return { content: [{ type: "text", text: "Failed to get advisor movements (no response data)" }] };
+                return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            } catch (error) {
+                return { content: [{ type: "text", text: formatError(error) }] };
+            }
         }
     );
 
@@ -1049,9 +1223,13 @@ const registerTools = (server: McpServer) => {
             if (!isTradingEnabled()) return { content: [{ type: "text", text: "Trading not enabled. Set IOL_ENABLE_TRADING=true to enable." }] };
             const accessToken = await ensureToken(username);
             if (!accessToken) return { content: [{ type: "text", text: `No valid token for ${username || "this account"}. Please login first.` }] };
-            const data = await makeIOLPostRequest<any>(`${IOL_API_BASE}/api/v2/asesores/operar/VenderEspecieD`, accessToken, body);
-            if (!data) return { content: [{ type: "text", text: "Advisor sell D order sent (no response data or error)" }] };
-            return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            try {
+                const data = await makeIOLPostRequest<any>(`${IOL_API_BASE}/api/v2/asesores/operar/VenderEspecieD`, accessToken, body);
+                if (!data) return { content: [{ type: "text", text: "Advisor sell D order sent (no response data)" }] };
+                return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+            } catch (error) {
+                return { content: [{ type: "text", text: formatError(error) }] };
+            }
         }
     );
 };

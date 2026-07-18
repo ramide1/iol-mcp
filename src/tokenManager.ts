@@ -30,16 +30,6 @@ class TokenManager {
     const token = this.tokens.get(username);
     return token?.refreshToken || null;
   }
-
-  isTokenValid(username: string): boolean {
-    const token = this.tokens.get(username);
-    if (!token) return false;
-    return Date.now() < token.expiresAt;
-  }
-
-  clearTokens(username: string): void {
-    this.tokens.delete(username);
-  }
 }
 
 export const tokenManager = new TokenManager();

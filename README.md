@@ -24,7 +24,7 @@ bun run start
 
 If `IOL_USERNAME` and `IOL_PASSWORD` are set, the server will automatically authenticate when a tool requires it (lazy login). Access tokens auto-refresh using the refresh token when expired. The `username` parameter becomes optional in all tools (except `get_token`). If not set, call `get_token` manually.
 
-Trading tools (`buy`, `sell`, `buy_d`, `sell_d`, `cancel_operation`, `subscribe_fci`, `rescue_fci`, `place_cpd`, `buy_simplified`) are disabled by default. Set `IOL_ENABLE_TRADING=true` to enable them.
+Trading tools (`buy`, `sell`, `buy_d`, `sell_d`, `cancel_operation`, `subscribe_fci`, `rescue_fci`, `place_cpd`, `buy_simplified`, `submit_advisor_test`, `submit_advisor_test_for_client`, `sell_d_advisor`) are disabled by default. Set `IOL_ENABLE_TRADING=true` to enable them.
 
 ## Available Tools
 
@@ -126,7 +126,7 @@ src/
 ├── tool.ts           # MCP tool definitions
 ├── tokenManager.ts   # Token storage and lifecycle
 ├── request.ts        # HTTP request helpers
-└── interface.ts      # TypeScript interfaces
+└── interface.ts      # TypeScript type definitions
 ```
 
 ## License
