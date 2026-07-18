@@ -4,7 +4,7 @@ class TokenManager {
   private tokens: Map<string, StoredToken> = new Map();
 
   storeToken(username: string, tokenData: TokenResponse): void {
-    const accessToken = tokenData["access token"] || "";
+    const accessToken = tokenData.access_token || "";
     const refreshToken = tokenData.refresh_token || "";
     const expiresIn = tokenData.expires_in || 900;
 
