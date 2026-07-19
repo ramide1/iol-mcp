@@ -27,7 +27,7 @@ Single flat package, no monorepo.
 | `src/tool.ts` | All MCP tool definitions in a single `registerTools()` function |
 | `src/tokenManager.ts` | In-memory token store (Map-based, no persistence) |
 | `src/request.ts` | HTTP helpers with Bearer auth + maintenance error handling |
-| `src/interface.ts` | TypeScript types (TokenResponse, StoredToken) |
+| `src/interface.ts` | TypeScript types for all IOL API endpoints |
 
 ## Token Flow
 
